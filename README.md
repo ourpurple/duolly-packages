@@ -1,2 +1,7 @@
 # duolly-packages
-111
+
+###luci-app-dnspod			
+### luci-app-koolddns
+### luci-app-netspeedtest
+### luci-app-vssr
+
