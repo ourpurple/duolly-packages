@@ -4,7 +4,7 @@ local o=require"luci.model.network".init()
 local a,t,e
 arg[1]=arg[1]or""
 a=Map(n,translate("DDNS Config"))
-a.redirect=i.build_url("admin","services","koolddns")
+a.redirect=i.build_url("admin","network","koolddns")
 t=a:section(NamedSection,arg[1],"koolddns","")
 t.addremove=false
 t.dynamic=false

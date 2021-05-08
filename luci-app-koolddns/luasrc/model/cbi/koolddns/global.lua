@@ -20,7 +20,7 @@ t=a:section(TypedSection,"koolddns",translate("Domain List"))
 t.anonymous=true
 t.addremove=true
 t.template="cbi/tblsection"
-t.extedit=o.build_url("admin","services","koolddns","config","%s")
+t.extedit=o.build_url("admin","network","koolddns","config","%s")
 function t.create(e,t)
 new=TypedSection.create(e,t)
 luci.http.redirect(e.extedit:format(new))
@@ -28,7 +28,7 @@ end
 function t.remove(e,t)
 e.map.proceed=true
 e.map:del(t)
-luci.http.redirect(o.build_url("admin","services","koolddns"))
+luci.http.redirect(o.build_url("admin","network","koolddns"))
 end
 local o=""
 e=t:option(DummyValue,"fulldomain",translate("Domain"))
@@ -74,7 +74,7 @@ e.inputtitle=translate("Update")
 e.inputstyle="reload"
 e.write=function()
 luci.sys.call("/etc/init.d/koolddns update")
-luci.http.redirect(luci.dispatcher.build_url("admin","services","koolddns"))
+luci.http.redirect(luci.dispatcher.build_url("admin","network","koolddns"))
 end
 e=t:option(TextValue,"log")
 e.rows=20
