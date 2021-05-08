@@ -3,10 +3,10 @@ function index()
 if not nixio.fs.access("/etc/config/koolddns")then
 return
 end
-entry({"admin","services","koolddns"},cbi("koolddns/global"),_("Koolddns"),58).dependent=true
-entry({"admin","services","koolddns","config"},cbi("koolddns/config")).leaf=true
-entry({"admin","services","koolddns","nslookup"},call("act_nslookup")).leaf=true
-entry({"admin","services","koolddns","curl"},call("act_curl")).leaf=true
+entry({"admin","network","koolddns"},cbi("koolddns/global"),_("Koolddns"),58).dependent=true
+entry({"admin","network","koolddns","config"},cbi("koolddns/config")).leaf=true
+entry({"admin","network","koolddns","nslookup"},call("act_nslookup")).leaf=true
+entry({"admin","network","koolddns","curl"},call("act_curl")).leaf=true
 end
 function act_nslookup()
 local e={}
