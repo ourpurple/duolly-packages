@@ -18,8 +18,6 @@ IPSET_BLACKLIST6="blacklist6"
 IPSET_WHITELIST6="whitelist6"
 IPSET_BLOCKLIST6="blocklist6"
 
-PROXY_IPV6=0
-
 FORCE_INDEX=2
 
 ipt_n="iptables -t nat"
@@ -197,7 +195,7 @@ load_acl() {
 				[ "$TCP_NODE" != "nil" ] && {
 					tcp_port=$TCP_REDIR_PORT
 					eval TCP_NODE_TYPE=$(echo $(config_n_get $TCP_NODE type) | tr 'A-Z' 'a-z')
-					[ "$TCP_NODE_TYPE" == "brook" ] && [ "$(config_n_get $TCP_NODE protocol client)" == "client" ] && is_tproxy=1
+					[ "$TCP_NODE_TYPE" == "brook" ] && is_tproxy=1
 					#[ "$TCP_NODE_TYPE" == "trojan-go" ] && is_tproxy=1
 					msg2="${msg}使用TCP节点 [$(get_action_chain_name $tcp_proxy_mode)]"
 					if [ -n "${is_tproxy}" ]; then
@@ -270,7 +268,7 @@ load_acl() {
 		unset is_tproxy msg
 		[ "$TCP_NODE" != "nil" ] && {
 			local TCP_NODE_TYPE=$(echo $(config_n_get $TCP_NODE type) | tr 'A-Z' 'a-z')
-			[ "$TCP_NODE_TYPE" == "brook" ] && [ "$(config_n_get $TCP_NODE protocol client)" == "client" ] && is_tproxy=1
+			[ "$TCP_NODE_TYPE" == "brook" ] && is_tproxy=1
 			#[ "$TCP_NODE_TYPE" == "trojan-go" ] && is_tproxy=1
 				msg="TCP默认代理：使用TCP节点 [$(get_action_chain_name $TCP_PROXY_MODE)]"
 			if [ -n "$is_tproxy" ]; then
@@ -362,7 +360,7 @@ filter_node() {
 			ipt_tmp=$ipt_n
 			ip6t_tmp=$ip6t_m
 			[ "$stream" == "udp" ] && is_tproxy=1
-			[ "$type" == "brook" ] && [ "$(config_n_get $node protocol client)" == "client" ] && is_tproxy=1
+			[ "$type" == "brook" ] && is_tproxy=1
 			#[ "$type" == "trojan-go" ] && is_tproxy=1
 			if [ -n "$is_tproxy" ]; then
 				ipt_tmp=$ipt_m
@@ -593,18 +591,6 @@ add_firewall_rule() {
 
 	ip rule add fwmark 1 lookup 100
 	ip route add local 0.0.0.0/0 dev lo table 100
-
-	local NODE_TYPE=$(echo $(config_n_get $TCP_NODE type) | tr 'A-Z' 'a-z')
-	local ipv6_tproxy=$(config_t_get global_other ipv6_tproxy 0)
-
-	if [ $ipv6_tproxy == "1" ]; then
-		if [ $NODE_TYPE == "xray" ]; then
-			PROXY_IPV6=1
-			echolog "节点类型:$NODE_TYPE，开启实验性IPv6透明代理(TProxy)..."
-		else
-			echolog "节点类型:$NODE_TYPE，暂不支持IPv6透明代理(TProxy)..."
-		fi
-	fi
 	
 	# 据说能提升性能？
 	$ip6t_m -w -N PSW_DIVERT
@@ -640,7 +626,7 @@ add_firewall_rule() {
 		local p_r=$(get_redirect_ipt $LOCALHOST_TCP_PROXY_MODE $TCP_REDIR_PORT)
 		TCP_NODE_TYPE=$(echo $(config_n_get $TCP_NODE type) | tr 'A-Z' 'a-z')
 		echolog "加载路由器自身 TCP 代理..."
-		if [ "$TCP_NODE_TYPE" == "brook" ] && [ "$(config_n_get $TCP_NODE protocol client)" == "client" ]; then
+		if [ "$TCP_NODE_TYPE" == "brook" ]; then
 			echolog "  - 启用 TPROXY 模式"
 			ipt_tmp=$ipt_m
 			dns_l="PSW"
