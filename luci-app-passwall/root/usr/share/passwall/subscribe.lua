@@ -10,7 +10,6 @@ require 'luci.jsonc'
 require 'luci.sys'
 local appname = 'passwall'
 local api = require ("luci.model.cbi." .. appname .. ".api.api")
-local has_xray = api.is_finded("xray")
 local datatypes = require "luci.cbi.datatypes"
 
 -- these global functions are accessed all the time by the event handler
@@ -21,6 +20,7 @@ local jsonParse, jsonStringify = luci.jsonc.parse, luci.jsonc.stringify
 local b64decode = nixio.bin.b64decode
 local ucic = luci.model.uci.cursor()
 local allowInsecure_default = ucic:get_bool(appname, "@global_subscribe[0]", "allowInsecure")
+local trojan_xray = ucic:get(appname, "@global_subscribe[0]", "trojan_xray") or "0"
 ucic:revert(appname)
 
 local nodeResult = {} -- update result
@@ -63,21 +63,65 @@ do
 	import_config("tcp")
 	import_config("udp")
 
-	local i = 0
-	ucic:foreach(appname, "socks", function(t)
-		i = i + 1
-		local node_id = t.node
-		CONFIG[#CONFIG + 1] = {
-			log = true,
-			id = t[".name"],
-			remarks = "Socks节点列表[" .. i .. "]",
-			currentNode = node_id and ucic:get_all(appname, node_id) or nil,
-			set = function(o, server)
-				ucic:set(appname, t[".name"], "node", server)
-				o.newNodeId = server
+	if true then
+		local i = 0
+		local option = "node"
+		ucic:foreach(appname, "socks", function(t)
+			i = i + 1
+			local node_id = t[option]
+			CONFIG[#CONFIG + 1] = {
+				log = true,
+				id = t[".name"],
+				remarks = "Socks节点列表[" .. i .. "]",
+				currentNode = node_id and ucic:get_all(appname, node_id) or nil,
+				set = function(o, server)
+					ucic:set(appname, t[".name"], option, server)
+					o.newNodeId = server
+				end
+			}
+		end)
+	end
+
+	if true then
+		local i = 0
+		local option = "lbss"
+		ucic:foreach(appname, "haproxy_config", function(t)
+			i = i + 1
+			local node_id = t[option]
+			CONFIG[#CONFIG + 1] = {
+				log = true,
+				id = t[".name"],
+				remarks = "HAProxy负载均衡节点列表[" .. i .. "]",
+				currentNode = node_id and ucic:get_all(appname, node_id) or nil,
+				set = function(o, server)
+					ucic:set(appname, t[".name"], option, server)
+					o.newNodeId = server
+				end
+			}
+		end)
+	end
+
+	if true then
+		local i = 0
+		local options = {"tcp", "udp"}
+		ucic:foreach(appname, "acl_rule", function(t)
+			i = i + 1
+			for index, value in ipairs(options) do
+				local option = value .. "_node"
+				local node_id = t[option]
+				CONFIG[#CONFIG + 1] = {
+					log = true,
+					id = t[".name"],
+					remarks = "访问控制列表[" .. i .. "]",
+					currentNode = node_id and ucic:get_all(appname, node_id) or nil,
+					set = function(o, server)
+						ucic:set(appname, t[".name"], option, server)
+						o.newNodeId = server
+					end
+				}
 			end
-		}
-	end)
+		end)
+	end
 
 	local tcp_node_table = ucic:get(appname, "@auto_switch[0]", "tcp_node")
 	if tcp_node_table then
@@ -434,7 +478,7 @@ local function processData(szType, content, add_mode, add_from)
 		end
 		result.remarks = UrlDecode(alias)
 		result.type = "Trojan-Plus"
-		if has_xray then
+		if trojan_xray == "1" then
 			result.type = 'Xray'
 			result.protocol = 'trojan'
 		end
@@ -668,7 +712,18 @@ end
 -- curl
 local function curl(url)
 	local ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36"
-	local stdout = luci.sys.exec(string.format('curl -skL --user-agent "%s" -k --retry 3 --connect-timeout 3 --retry-all-errors "%s"', ua, url))
+	local a = ""
+	if luci.sys.call('curl --help all | grep "\\-\\-retry-all-errors" > /dev/null') == 0 then
+		a = "--retry-all-errors"
+	end
+	local stdout = luci.sys.exec(string.format('curl -skL --user-agent "%s" -k --retry 3 --connect-timeout 3 %s "%s"', ua, a, url))
+	if not stdout or #stdout <= 0 then
+		if ucic:get(appname, "@global_subscribe[0]", "subscribe_proxy") or "0" == "1" and ucic:get(appname, "@global[0]", "enabled") or "0" == "1" then
+			log('通过代理订阅失败，尝试关闭代理订阅。')
+			luci.sys.call("/etc/init.d/" .. appname .. " stop > /dev/null")
+			stdout = luci.sys.exec(string.format('curl -skL --user-agent "%s" -k --retry 3 --connect-timeout 3 %s "%s"', ua, a, url))
+		end
+	end
 	return trim(stdout)
 end
 
@@ -950,7 +1005,6 @@ local function parse_link(raw, add_mode, add_from)
 end
 
 local execute = function()
-	-- exec
 	do
 		ucic:foreach(appname, "subscribe_list", function(obj)
 			local enabled = obj.enabled or nil
@@ -962,7 +1016,6 @@ local execute = function()
 				parse_link(raw, "2", remark)
 			end
 		end)
-		-- diff
 		update_node(0)
 	end
 end

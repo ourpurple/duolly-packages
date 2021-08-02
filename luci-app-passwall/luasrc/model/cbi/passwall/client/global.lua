@@ -1,7 +1,8 @@
-local uci = require"luci.model.uci".cursor()
 local api = require "luci.model.cbi.passwall.api.api"
 local appname = api.appname
+local uci = api.uci
 local has_xray = api.is_finded("xray")
+local datatypes = api.datatypes
 
 m = Map(appname)
 
@@ -177,7 +178,6 @@ s:tab("DNS", translate("DNS"))
 o = s:taboption("DNS", ListValue, "dns_mode", translate("Filter Mode"))
 o.rmempty = false
 o:reset_values()
-o:value("fake_ip", translatef("Fake IP"))
 if api.is_finded("pdnsd") then
     o:value("pdnsd", "pdnsd " .. translatef("Requery DNS By %s", translate("TCP Node")))
 end
@@ -250,6 +250,7 @@ o = s:taboption("DNS", Flag, "dns_cache", translate("Cache Resolved"))
 o.default = "1"
 o:depends({dns_mode = "dns2socks"})
 o:depends({dns_mode = "pdnsd"})
+o.rmempty = false
 ]]--
 
 o = s:taboption("DNS", Button, "clear_ipset", translate("Clear IPSET"), translate("Try this feature if the rule modification does not take effect."))
@@ -269,6 +270,7 @@ tcp_proxy_mode:value("global", translate("Global Proxy"))
 tcp_proxy_mode:value("gfwlist", translate("GFW List"))
 tcp_proxy_mode:value("chnroute", translate("Not China List"))
 tcp_proxy_mode:value("returnhome", translate("China List"))
+tcp_proxy_mode:value("direct/proxy", translate("Only use direct/proxy list"))
 tcp_proxy_mode.default = "chnroute"
 --tcp_proxy_mode.validate = redir_mode_validate
 
@@ -277,8 +279,9 @@ udp_proxy_mode = s:taboption("Proxy", ListValue, "udp_proxy_mode", "UDP " .. tra
 udp_proxy_mode:value("disable", translate("No Proxy"))
 udp_proxy_mode:value("global", translate("Global Proxy"))
 udp_proxy_mode:value("gfwlist", translate("GFW List"))
-udp_proxy_mode:value("chnroute", translate("Game Mode"))
+udp_proxy_mode:value("chnroute", translate("Not China List"))
 udp_proxy_mode:value("returnhome", translate("China List"))
+udp_proxy_mode:value("direct/proxy", translate("Only use direct/proxy list"))
 udp_proxy_mode.default = "chnroute"
 --udp_proxy_mode.validate = redir_mode_validate
 
@@ -290,6 +293,7 @@ localhost_tcp_proxy_mode:value("global", translate("Global Proxy"))
 localhost_tcp_proxy_mode:value("gfwlist", translate("GFW List"))
 localhost_tcp_proxy_mode:value("chnroute", translate("Not China List"))
 localhost_tcp_proxy_mode:value("returnhome", translate("China List"))
+localhost_tcp_proxy_mode:value("direct/proxy", translate("Only use direct/proxy list"))
 localhost_tcp_proxy_mode.default = "default"
 --localhost_tcp_proxy_mode.validate = redir_mode_validate
 
@@ -298,9 +302,10 @@ localhost_udp_proxy_mode = s:taboption("Proxy", ListValue, "localhost_udp_proxy_
 localhost_udp_proxy_mode:value("default", translate("Default"))
 localhost_udp_proxy_mode:value("global", translate("Global Proxy"))
 localhost_udp_proxy_mode:value("gfwlist", translate("GFW List"))
-localhost_udp_proxy_mode:value("chnroute", translate("Game Mode"))
+localhost_udp_proxy_mode:value("chnroute", translate("Not China List"))
 localhost_udp_proxy_mode:value("returnhome", translate("China List"))
 localhost_udp_proxy_mode:value("disable", translate("No Proxy"))
+localhost_udp_proxy_mode:value("direct/proxy", translate("Only use direct/proxy list"))
 localhost_udp_proxy_mode.default = "default"
 localhost_udp_proxy_mode.validate = redir_mode_validate
 

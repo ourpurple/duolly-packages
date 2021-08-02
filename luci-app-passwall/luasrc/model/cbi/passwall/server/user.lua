@@ -113,8 +113,8 @@ function brook_protocol.write(self, section, value)
 	m:set(section, "protocol", value)
 end
 
-brook_tls = s:option(Flag, "brook_tls", translate("Use TLS"))
-brook_tls:depends("brook_protocol", "wsserver")
+--brook_tls = s:option(Flag, "brook_tls", translate("Use TLS"))
+--brook_tls:depends("brook_protocol", "wsserver")
 
 port = s:option(Value, "port", translate("Listen Port"))
 port.datatype = "port"
@@ -295,13 +295,14 @@ flow:value("xtls-rprx-direct")
 flow:value("xtls-rprx-direct-udp443")
 flow:depends("xtls", true)
 
--- [[ TLS部分 ]] --
+alpn = s:option(ListValue, "alpn", translate("alpn"))
+alpn.default = "h2,http/1.1"
+alpn:value("h2,http/1.1")
+alpn:value("h2")
+alpn:value("http/1.1")
+alpn:depends({ type = "Xray", tls = true })
 
-tls_allowInsecure = s:option(Flag, "tls_allowInsecure", translate("allowInsecure"), translate("Whether unsafe connections are allowed. When checked, Certificate validation will be skipped."))
-tls_allowInsecure.default = "0"
-tls_allowInsecure:depends({ type = "Trojan", tls = true })
-tls_allowInsecure:depends({ type = "Trojan-Plus", tls = true })
-tls_allowInsecure:depends({ type = "Trojan-Go", tls = true })
+-- [[ TLS部分 ]] --
 
 tls_certificateFile = s:option(FileUpload, "tls_certificateFile", translate("Public key absolute path"), translate("as:") .. "/etc/ssl/fullchain.pem")
 tls_certificateFile.validate = function(self, value, t)
@@ -356,7 +357,7 @@ trojan_transport:value("original", "Original")
 trojan_transport:value("ws", "WebSocket")
 trojan_transport:value("h2", "HTTP/2")
 trojan_transport:value("h2+ws", "HTTP/2 & WebSocket")
-trojan_transport.default = "ws"
+trojan_transport.default = "original"
 trojan_transport:depends("type", "Trojan-Go")
 
 trojan_plugin = s:option(ListValue, "plugin_type", translate("Plugin Type"))
@@ -394,6 +395,7 @@ ws_path:depends("transport", "ws")
 ws_path:depends("ss_transport", "ws")
 ws_path:depends("trojan_transport", "h2+ws")
 ws_path:depends("trojan_transport", "ws")
+ws_path:depends({ type = "Brook", brook_protocol = "wsserver" })
 
 -- [[ HTTP/2部分 ]]--
 
@@ -511,7 +513,7 @@ fallback_xver:depends("fallback", true)
 fallback_list = s:option(DynamicList, "fallback_list", "Fallback", translate("dest,path"))
 fallback_list:depends("fallback", true)
 
-ss_aead = s:option(Flag, "ss_aead", translate("Shadowsocks2"))
+ss_aead = s:option(Flag, "ss_aead", translate("Shadowsocks secondary encryption"))
 ss_aead:depends("type", "Trojan-Go")
 ss_aead.default = "0"
 
