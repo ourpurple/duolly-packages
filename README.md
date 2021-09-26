@@ -14,6 +14,16 @@ from: https://github.com/ntlf9t/luci-app-dnspod
 
 dnspod动态域名
 
+## luci-app-advanced
+
+from: https://github.com/sirpdboy/sirpdboy-package
+
+高级设置
+
+
+
+
+
 
 
 
