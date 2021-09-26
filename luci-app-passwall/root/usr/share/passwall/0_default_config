@@ -32,8 +32,7 @@ config global_forwarding
 	option tcp_redir_ports '22,25,53,143,465,587,993,995,80,443'
 	option udp_redir_ports '1:65535'
 	option accept_icmp '0'
-	option tcp_proxy_way 'default'
-	option proxy_ipv6 '0'
+	option tcp_proxy_way 'redirect'
 	
 config global_other
 	option status 'big_icon show_check_port show_ip111'
@@ -46,21 +45,23 @@ config global_rules
 	option chnroute_update '1'
 	option chnroute6_update '1'
 	option gfwlist_update '1'
-	option gfwlist_url 'https://cdn.jsdelivr.net/gh/YW5vbnltb3Vz/domain-list-community@release/gfwlist.txt'
-	option chnroute_url 'https://ispip.clang.cn/all_cn.txt'
-	option chnroute6_url 'https://ispip.clang.cn/all_cn_ipv6.txt'
+	option geosite_update '0'
+	option geoip_update '0'
+	list gfwlist_url 'https://cdn.jsdelivr.net/gh/YW5vbnltb3Vz/domain-list-community@release/gfwlist.txt'
+	list chnroute_url 'https://ispip.clang.cn/all_cn.txt'
+	list chnroute6_url 'https://ispip.clang.cn/all_cn_ipv6.txt'
 	list chnlist_url 'https://cdn.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/accelerated-domains.china.conf'
 	list chnlist_url 'https://cdn.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/apple.china.conf'
 	list chnlist_url 'https://cdn.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/google.china.conf'
-	option xray_location_asset '/usr/share/xray/'
-	option geosite_update '1'
-	option geoip_update '1'
+	option v2ray_location_asset '/usr/share/xray/'
 
 config global_app
+	option v2ray_file '/usr/bin/v2ray'
 	option xray_file '/usr/bin/xray'
 	option trojan_go_file '/usr/bin/trojan-go'
 	option kcptun_client_file '/usr/bin/kcptun-client'
 	option brook_file '/usr/bin/brook'
+	option hysteria_file '/usr/bin/hysteria'
 
 config global_subscribe
 	option subscribe_proxy '0'
@@ -77,6 +78,7 @@ config auto_switch
 	option testing_time '1'
 	option connect_timeout '3'
 	option retry_num '3'
+	option shunt_logic '1'
 	
 config nodes '696cd32c1d5149ee95fd1b3accbad6df'
 	option remarks '分流总节点'
@@ -91,13 +93,8 @@ config nodes '696cd32c1d5149ee95fd1b3accbad6df'
 	option domainStrategy 'IPIfNonMatch'
 	
 config shunt_rules 'ads'
-	option remarks '广告'
+	option remarks 'AD'
 	option domain_list 'geosite:category-ads'
-	
-config shunt_rules 'China'
-	option remarks 'China'
-	option domain_list 'geosite:cn'
-	option ip_list 'geoip:cn'
 	
 config shunt_rules 'Telegram'
 	option remarks 'Telegram'
@@ -117,7 +114,7 @@ ytimg.com
 gvt2.com'
 
 config shunt_rules 'netflix'
-	option remarks '奈飞'
+	option remarks 'Netflix'
 	option domain_list 'fast.com
 netflix
 netflix.com
@@ -142,3 +139,8 @@ config shunt_rules 'TVB'
 	option remarks 'TVB'
 	option domain_list 'tvb.com
 mytvsuper.com'
+
+config shunt_rules 'China'
+	option remarks 'China'
+	option domain_list 'geosite:cn'
+	option ip_list 'geoip:cn'

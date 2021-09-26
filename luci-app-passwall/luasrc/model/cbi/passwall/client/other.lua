@@ -88,18 +88,10 @@ o.default = 0
 
 if os.execute("lsmod | grep -i REDIRECT >/dev/null") == 0 and os.execute("lsmod | grep -i TPROXY >/dev/null") == 0 then
     o = s:option(ListValue, "tcp_proxy_way", translate("TCP Proxy Way"))
-    o.default = "default"
-    o:value("default", translate("Default"))
+    o.default = "redirect"
     o:value("redirect", "REDIRECT")
     o:value("tproxy", "TPROXY")
 end
-
---[[
----- Proxy IPv6
-o = s:option(Flag, "proxy_ipv6", translate("Proxy IPv6"),
-             translate("The IPv6 traffic can be proxyed when selected"))
-o.default = 0
---]]
 
 --[[
 ---- TCP Redir Port

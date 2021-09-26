@@ -1,5 +1,33 @@
 local api = require "luci.model.cbi.passwall.api.api"
 local appname = api.appname
+local has_ss = api.is_finded("ss-redir")
+local has_ss_rust = api.is_finded("sslocal")
+local has_trojan_plus = api.is_finded("trojan-plus")
+local has_v2ray = api.is_finded("v2ray")
+local has_xray = api.is_finded("xray")
+local has_trojan_go = api.is_finded("trojan-go")
+local ss_aead_type = {}
+local trojan_type = {}
+if has_ss then
+    ss_aead_type[#ss_aead_type + 1] = "shadowsocks-libev"
+end
+if has_ss_rust then
+    ss_aead_type[#ss_aead_type + 1] = "shadowsocks-rust"
+end
+if has_trojan_plus then
+    trojan_type[#trojan_type + 1] = "trojan-plus"
+end
+if has_v2ray then
+    trojan_type[#trojan_type + 1] = "v2ray"
+    ss_aead_type[#ss_aead_type + 1] = "v2ray"
+end
+if has_xray then
+    trojan_type[#trojan_type + 1] = "xray"
+    ss_aead_type[#ss_aead_type + 1] = "xray"
+end
+if has_trojan_go then
+    trojan_type[#trojan_type + 1] = "trojan-go"
+end
 
 m = Map(appname)
 
@@ -45,9 +73,18 @@ o = s:option(Flag, "allowInsecure", translate("allowInsecure"), translate("Wheth
 o.default = "1"
 o.rmempty = false
 
-if api.is_finded("xray") and api.is_finded("trojan-plus") then
-    o = s:option(Flag, "trojan_xray", translate("Trojan Node Use Xray"))
-    o.default = "0"
+if #ss_aead_type > 0 then
+    o = s:option(ListValue, "ss_aead_type", translate("SS AEAD Node Use Type"))
+    for key, value in pairs(ss_aead_type) do
+        o:value(value, translate(value:gsub("^%l",string.upper)))
+    end
+end
+
+if #trojan_type > 0 then
+    o = s:option(ListValue, "trojan_type", translate("Trojan Node Use Type"))
+    for key, value in pairs(trojan_type) do
+        o:value(value, translate(value:gsub("^%l",string.upper)))
+    end
 end
 
 ---- Manual subscription
@@ -62,8 +99,7 @@ end
 o = s:option(Button, "_stop", translate("Delete All Subscribe Node"))
 o.inputstyle = "remove"
 function o.write(e, e)
-    luci.sys.call("lua /usr/share/" .. appname .. "/subscribe.lua truncate log > /dev/null 2>&1 &")
-    luci.http.redirect(api.url("log"))
+    luci.sys.call("lua /usr/share/" .. appname .. "/subscribe.lua truncate > /dev/null 2>&1")
 end
 
 s = m:section(TypedSection, "subscribe_list", "",
@@ -99,5 +135,12 @@ end
 o = s:option(Value, "url", translate("Subscribe URL"))
 o.width = "auto"
 o.rmempty = false
+
+o = s:option(Button, "_remove", translate("Delete the subscribed node"))
+o.inputstyle = "remove"
+function o.write(t, n)
+    local remark = m:get(n, "remark") or "" 
+    luci.sys.call("lua /usr/share/" .. appname .. "/subscribe.lua truncate " .. remark .. " > /dev/null 2>&1")
+end
 
 return m

@@ -94,6 +94,9 @@ msgstr "谷歌连接"
 msgid "GitHub Connection"
 msgstr "GitHub连接"
 
+msgid "Instagram Connection"
+msgstr "Instagram连接"
+
 msgid "Node Check"
 msgstr "节点检测"
 
@@ -244,6 +247,9 @@ msgstr "Dnsmasq的默认DNS"
 msgid "When the accessed domain name does not exist in the rule list, the default DNS used."
 msgstr "当访问的域名不存在规则列表中，使用的默认DNS。"
 
+msgid "The effect is better, but will increase the memory."
+msgstr "效果更好，但会增加内存使用。"
+
 msgid "Clear IPSET"
 msgstr "清空 IPSET"
 
@@ -339,6 +345,9 @@ msgstr "路由器自身"
 
 msgid "Danger"
 msgstr "危险"
+
+msgid "Same as the %s default proxy mode"
+msgstr "与 %s 默认代理模式相同"
 
 msgid "Operation"
 msgstr "操作"
@@ -442,8 +451,8 @@ msgstr "使用默认节点代理转发。"
 msgid "No shunt rules? Click me to go to add."
 msgstr "没有分流规则？点我前往去添加。"
 
-msgid "Use this node proxy to forward the default node."
-msgstr "使用此节点代理转发默认节点。"
+msgid "When using, localhost will connect this node first and then use this node to connect the default node."
+msgstr "当使用时，本机将首先连接到此节点，然后再使用此节点连接到默认节点落地。"
 
 msgid "Domain Strategy"
 msgstr "域名解析策略"
@@ -508,8 +517,29 @@ msgstr "证书路径"
 msgid "Finger Print"
 msgstr "指纹伪造"
 
+msgid "Original"
+msgstr "原版"
+
+msgid "Transport Plugin"
+msgstr "传输层插件"
+
 msgid "Shadowsocks secondary encryption"
 msgstr "Shadowsocks 二次加密"
+
+msgid "Obfs Password"
+msgstr "混淆密码"
+
+msgid "Auth Type"
+msgstr "认证类型"
+
+msgid "Auth Password"
+msgstr "认证密码"
+
+msgid "Max upload Mbps"
+msgstr "最大上行(Mbps)"
+
+msgid "Max download Mbps"
+msgstr "最大下行(Mbps)"
 
 msgid "Encrypt Method"
 msgstr "加密"
@@ -688,8 +718,8 @@ msgstr "恢复切换"
 msgid "When detects main node is available, switch back to the main node."
 msgstr "当检测到主节点可用时，切换回主节点。"
 
-msgid "If the main node is Xray shunt"
-msgstr "如果主节点是Xray分流"
+msgid "If the main node is V2ray/Xray shunt"
+msgstr "如果主节点是V2ray/Xray分流"
 
 msgid "Switch it"
 msgstr "切掉它"
@@ -805,8 +835,8 @@ msgstr "周"
 msgid "oclock"
 msgstr "点"
 
-msgid "Location of Xray asset"
-msgstr "Xray 资源文件目录"
+msgid "Location of V2ray/Xray asset"
+msgstr "V2ray/Xray 资源文件目录"
 
 msgid "This variable specifies a directory where geoip.dat and geosite.dat files are."
 msgstr "此变量指定geoip.dat和geosite.dat文件所在的目录。"
@@ -897,6 +927,9 @@ msgstr "手动订阅"
 
 msgid "Delete All Subscribe Node"
 msgstr "删除所有订阅节点"
+
+msgid "Delete the subscribed node"
+msgstr "删除已订阅的节点"
 
 msgid "Filter keyword Mode"
 msgstr "过滤关键字模式"
@@ -1033,12 +1066,6 @@ msgstr "插件名称"
 msgid "Plugin Arguments"
 msgstr "插件参数"
 
-msgid "Proxy IPv6"
-msgstr "代理IPv6"
-
-msgid "The IPv6 traffic can be proxyed when selected"
-msgstr "选中后可以代理IPv6流量"
-
 msgid "Use Kcptun"
 msgstr "使用Kcptun"
 
@@ -1090,6 +1117,9 @@ msgstr "是否启入传输层加密，支持的选项有 \"none\" 表示不加�
 msgid "Original Trojan only supported 'tls', please choose 'tls'."
 msgstr "原版Trojan只支持'tls'，请选择'tls'。"
 
+msgid "Transfer mode"
+msgstr "传输模式"
+
 msgid "Domain"
 msgstr "域名"
 
@@ -1099,8 +1129,11 @@ msgstr "允许不安全连接"
 msgid "Whether unsafe connections are allowed. When checked, Certificate validation will be skipped."
 msgstr "是否允许不安全连接。当勾选时，将跳过证书验证。"
 
-msgid "Trojan Node Use Xray"
-msgstr "Trojan节点使用Xray"
+msgid "SS AEAD Node Use Type"
+msgstr "SS AEAD节点使用类型"
+
+msgid "Trojan Node Use Type"
+msgstr "Trojan节点使用类型"
 
 msgid "<br />none: default, no masquerade, data sent is packets with no characteristics.<br />srtp: disguised as an SRTP packet, it will be recognized as video call data (such as FaceTime).<br />utp: packets disguised as uTP will be recognized as bittorrent downloaded data.<br />wechat-video: packets disguised as WeChat video calls.<br />dtls: disguised as DTLS 1.2 packet.<br />wireguard: disguised as a WireGuard packet. (not really WireGuard protocol)"
 msgstr "<br />none：默认值，不进行伪装，发送的数据是没有特征的数据包。<br />srtp：伪装成 SRTP 数据包，会被识别为视频通话数据（如 FaceTime）。<br />utp：伪装成 uTP 数据包，会被识别为 BT 下载数据。<br />wechat-video：伪装成微信视频通话的数据包。<br />dtls：伪装成 DTLS 1.2 数据包。<br />wireguard：伪装成 WireGuard 数据包。(并不是真正的 WireGuard 协议)"
@@ -1189,8 +1222,8 @@ msgstr "当勾选时，可以直接访问局域网，这将不安全！（非特
 msgid "Enable Remote"
 msgstr "启用转发"
 
-msgid "You can forward to Nginx/Caddy/V2ray WebSocket and more."
-msgstr "您可以转发到Nginx/Caddy/V2ray WebSocket等。"
+msgid "You can forward to Nginx/Caddy/V2ray/Xray WebSocket and more."
+msgstr "您可以转发到Nginx/Caddy/V2ray/Xray WebSocket等。"
 
 msgid "Remote Address"
 msgstr "远程地址"
@@ -1240,6 +1273,12 @@ msgstr "未启用日志"
 msgid "UDP Forward"
 msgstr "UDP转发"
 
+msgid "DNS Settings"
+msgstr "DNS设置"
+
+msgid "Null"
+msgstr "无"
+
 msgid "You did not fill in the %s path. Please save and apply then update manually."
 msgstr "您没有填写 %s 路径。请保存应用后再手动更新。"
 
@@ -1275,6 +1314,3 @@ msgstr "客户端文件不适合当前设备。"
 
 msgid "Can't move new file to path: %s"
 msgstr "无法移动新文件到：%s"
-
-msgid "DNS Settings"
-msgstr "DNS设置"

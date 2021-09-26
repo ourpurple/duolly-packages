@@ -1,5 +1,6 @@
 #!/usr/bin/lua
 
+require 'nixio'
 require 'luci.sys'
 local luci = luci
 local ucic = luci.model.uci.cursor()
@@ -7,6 +8,7 @@ local jsonc = require "luci.jsonc"
 local i18n = require "luci.i18n"
 local name = 'passwall'
 local arg1 = arg[1]
+local b64decode = nixio.bin.b64decode
 
 local rule_path = "/usr/share/" .. name .. "/rules"
 local reboot = 0
@@ -23,15 +25,15 @@ local ip_pattern = "^%d+%.%d+%.%d+%.%d+"
 local ip4_ipset_pattern = "^%d+%.%d+%.%d+%.%d+[%/][%d]+$"
 local ip6_ipset_pattern = ":-[%x]+%:+[%x]-[%/][%d]+$"
 local domain_pattern = "([%w%-%_]+%.[%w%.%-%_]+)[%/%*]*"
-local excluded_domain = {"apple.com","sina.cn","sina.com.cn","baidu.com","byr.cn","jlike.com","weibo.com","zhongsou.com","youdao.com","sogou.com","so.com","soso.com","aliyun.com","taobao.com","jd.com","qq.com"}
+local excluded_domain = {"apple.com","sina.cn","sina.com.cn","baidu.com","byr.cn","jlike.com","weibo.com","zhongsou.com","youdao.com","sogou.com","so.com","soso.com","aliyun.com","taobao.com","jd.com","qq.com","bing.com"}
 
-local gfwlist_url = ucic:get_first(name, 'global_rules', "gfwlist_url", "https://cdn.jsdelivr.net/gh/YW5vbnltb3Vz/domain-list-community@release/gfwlist.txt")
-local chnroute_url = ucic:get_first(name, 'global_rules', "chnroute_url", "https://ispip.clang.cn/all_cn.txt")
-local chnroute6_url =  ucic:get_first(name, 'global_rules', "chnroute6_url", "https://ispip.clang.cn/all_cn_ipv6.txt")
+local gfwlist_url = ucic:get(name, "@global_rules[0]", "gfwlist_url") or {"https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/gfw.txt"}
+local chnroute_url = ucic:get(name, "@global_rules[0]", "chnroute_url") or {"https://ispip.clang.cn/all_cn.txt"}
+local chnroute6_url =  ucic:get(name, "@global_rules[0]", "chnroute6_url") or {"https://ispip.clang.cn/all_cn_ipv6.txt"}
 local chnlist_url = ucic:get(name, "@global_rules[0]", "chnlist_url") or {"https://cdn.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/accelerated-domains.china.conf","https://cdn.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/apple.china.conf","https://cdn.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/google.china.conf"}
 local geoip_api =  "https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases/latest"
 local geosite_api =  "https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases/latest"
-local xray_asset_location = ucic:get_first(name, 'global_rules', "xray_location_asset", "/usr/share/xray/")
+local v2ray_asset_location = ucic:get_first(name, 'global_rules', "v2ray_location_asset", "/usr/share/xray/")
 
 local log = function(...)
     if arg1 then
@@ -49,20 +51,21 @@ local log = function(...)
 end
 
 -- base64decoding
-local function base64_dec(data)
-	local bc='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-    data = string.gsub(data, '[^'..bc..'=]', '')
-    return (data:gsub('.', function(x)
-        if (x == '=') then return '' end
-        local r,f='',(bc:find(x)-1)
-        for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0 and '1' or '0') end
-        return r;
-    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
-        if (#x ~= 8) then return '' end
-        local c=0
-        for i=1,8 do c=c+(x:sub(i,i)=='1' and 2^(8-i) or 0) end
-        return string.char(c)
-    end))
+local function base64Decode(text)
+	local raw = text
+	if not text then return '' end
+	text = text:gsub("%z", "")
+	text = text:gsub("%c", "")
+	text = text:gsub("_", "/")
+	text = text:gsub("-", "+")
+	local mod4 = #text % 4
+	text = text .. string.sub('====', mod4 + 1)
+	local result = b64decode(text)
+	if result then
+		return result:gsub("%z", "")
+	else
+		return raw
+	end
 end
 
 -- trim
@@ -95,117 +98,130 @@ local function check_excluded_domain(value)
 	end
 end
 
---fetch gfwlist
-local function fetch_gfwlist()
-	local sret = curl(gfwlist_url, "/tmp/gfwlist_dl")
-	if sret == 200 then
-		local domains = {}
-		local gfwlist = io.open("/tmp/gfwlist_dl", "r")
-		local decode = base64_dec(gfwlist:read("*all"))
-		gfwlist:close()
-
-		gfwlist = io.open("/tmp/gfwlist_dl", "w")
-		gfwlist:write(decode)
-		gfwlist:close()
-
-		for line in io.lines("/tmp/gfwlist_dl") do
-			if not (string.find(line, comment_pattern) or string.find(line, ip_pattern) or check_excluded_domain(line)) then
-				local start, finish, match = string.find(line, domain_pattern)
-				if (start) then
-					domains[match] = true
-				end
-			end
-		end
-
-		local out = io.open("/tmp/gfwlist_tmp", "w")
-		for k,v in pairs(domains) do
-			out:write(string.format("%s\n", k))
-		end
-		out:close()
+local function line_count(file_path)
+	local num = 0
+	for _ in io.lines(file_path) do
+		num = num + 1
 	end
-
-	os.remove("/tmp/gfwlist_dl")
-
-	return sret;
+	return num;
 end
 
---fetch chnroute
-local function fetch_chnroute()
-	local sret = curl(chnroute_url, "/tmp/chnroute_dl")
-
-	if sret == 200 then
-		local out = io.open("/tmp/chnroute_tmp", "w")
-
-		for line in io.lines("/tmp/chnroute_dl") do
-			local start, finish, match = string.find(line, ip4_ipset_pattern)
-			if (start) then
-				out:write(string.format("%s\n", line))
-			end
-		end
-
-		out:close()
-	end
-
-	os.remove("/tmp/chnroute_dl")
-
-	return sret;
-end
-
---fetch chnroute6
-local function fetch_chnroute6()
-	local sret = curl(chnroute6_url, "/tmp/chnroute6_dl")
-
-	if sret == 200 then
-		local out = io.open("/tmp/chnroute6_tmp", "w")
-		for line in io.lines("/tmp/chnroute6_dl") do
-			local start, finish, match = string.find(line, ip6_ipset_pattern)
-			if (start) then
-				out:write(string.format("%s\n", line))
-			end
-		end
-
-		out:close()
-	end
-
-	os.remove("/tmp/chnroute6_dl")
-
-	return sret;
-end
-
---fetch chnlist
-local function fetch_chnlist()
-	local domains = {}
+--fetch rule
+local function fetch_rule(rule_name,rule_type,url,exclude_domain)
 	local sret = 200
 	local sret_tmp = 0
+	local domains = {}
+	local file_tmp = "/tmp/" ..rule_name.. "_tmp"
+	local download_file_tmp = "/tmp/" ..rule_name.. "_dl"
+	local unsort_file_tmp = "/tmp/" ..rule_name.. "_unsort"
 
-	for k,v in ipairs(chnlist_url) do
-		sret_tmp = curl(v, "/tmp/chnlist_dl"..k)
+	log(rule_name.. " 开始更新...")
+	for k,v in ipairs(url) do
+		sret_tmp = curl(v, download_file_tmp..k)
 		if sret_tmp == 200 then
-			for line in io.lines("/tmp/chnlist_dl"..k) do
-				local start, finish, match = string.find(line, domain_pattern)
-				if (start) then
-					domains[match] = true
-				end
+			if rule_name == "gfwlist" then
+				local domains = {}
+				local gfwlist = io.open(download_file_tmp..k, "r")
+				local decode = base64Decode(gfwlist:read("*all"))
+				gfwlist:close()
+
+				gfwlist = io.open(download_file_tmp..k, "w")
+				gfwlist:write(decode)
+				gfwlist:close()
 			end
+
+			if rule_type == "domain" and exclude_domain == true then
+				for line in io.lines(download_file_tmp..k) do
+					if not (string.find(line, comment_pattern) or string.find(line, ip_pattern) or check_excluded_domain(line)) then
+						local start, finish, match = string.find(line, domain_pattern)
+						if (start) then
+							domains[match] = true
+						end
+					end
+				end
+
+			elseif rule_type == "domain" then
+				for line in io.lines(download_file_tmp..k) do
+					if not (string.find(line, comment_pattern) or string.find(line, ip_pattern)) then
+						local start, finish, match = string.find(line, domain_pattern)
+						if (start) then
+							domains[match] = true
+						end
+					end
+				end
+
+			elseif rule_type == "ip4" then
+				local out = io.open(unsort_file_tmp, "a")
+				for line in io.lines(download_file_tmp..k) do
+					local start, finish, match = string.find(line, ip4_ipset_pattern)
+					if (start) then
+						out:write(string.format("%s\n", line))
+					end
+				end
+				out:close()
+
+			elseif rule_type == "ip6" then
+				local out = io.open(unsort_file_tmp, "a")
+				for line in io.lines(download_file_tmp..k) do
+					local start, finish, match = string.find(line, ip6_ipset_pattern)
+					if (start) then
+						out:write(string.format("%s\n", line))
+					end
+				end
+				out:close()
+
+			end
+			os.remove(download_file_tmp..k)				
 		else
 			sret = 0
-			log("chnlist 第"..k.."条规则:"..v.."下载失败！")
+			log(rule_name.. " 第" ..k.. "条规则:" ..v.. "下载失败！")
 		end
-		os.remove("/tmp/chnlist_dl"..k)
 	end
 
 	if sret == 200 then
-		local out = io.open("/tmp/cdn_tmp", "w")
-		for k,v in pairs(domains) do
-			out:write(string.format("%s\n", k))
+		if rule_type == "domain" then
+			local out = io.open(unsort_file_tmp, "w")
+			for k,v in pairs(domains) do
+				out:write(string.format("%s\n", k))
+			end
+			out:close()
 		end
-		out:close()
-
-		luci.sys.call("cat /tmp/cdn_tmp | sort -u > /tmp/chnlist_tmp")
-		os.remove("/tmp/cdn_tmp")
+		luci.sys.call("cat " ..unsort_file_tmp.. " | sort -u > "..file_tmp)
+		os.remove(unsort_file_tmp)
 	end
 
-	return sret;
+	if sret == 200 then
+		local old_md5 = luci.sys.exec("echo -n $(md5sum " .. rule_path .. "/" ..rule_name.. " | awk '{print $1}')")
+		local new_md5 = luci.sys.exec("echo -n $([ -f '" ..file_tmp.. "' ] && md5sum " ..file_tmp.." | awk '{print $1}')")
+		if old_md5 ~= new_md5 then
+			local count = line_count(file_tmp)
+			luci.sys.exec("mv -f "..file_tmp .. " " ..rule_path .. "/" ..rule_name)
+			reboot = 1
+			log(rule_name.. " 更新成功，总规则数 " ..count.. " 条。")
+		else
+			log(rule_name.. " 版本一致，无需更新。")
+		end
+	else
+		log(rule_name.. " 文件下载失败！")
+	end
+	os.remove(file_tmp)
+	return 0
+end
+
+local function fetch_gfwlist()
+	fetch_rule("gfwlist","domain",gfwlist_url,true)
+end
+
+local function fetch_chnroute()
+	fetch_rule("chnroute","ip4",chnroute_url,false)
+end
+
+local function fetch_chnroute6()
+	fetch_rule("chnroute6","ip6",chnroute6_url,false)
+end
+
+local function fetch_chnlist()
+	fetch_rule("chnlist","domain",chnlist_url,false)
 end
 
 --获取geoip
@@ -226,8 +242,8 @@ local function fetch_geoip()
 						f:write(content:gsub("geoip.dat", "/tmp/geoip.dat"), "")
 						f:close()
 
-						if nixio.fs.access(xray_asset_location .. "geoip.dat") then
-							luci.sys.call(string.format("cp -f %s %s", xray_asset_location .. "geoip.dat", "/tmp/geoip.dat"))
+						if nixio.fs.access(v2ray_asset_location .. "geoip.dat") then
+							luci.sys.call(string.format("cp -f %s %s", v2ray_asset_location .. "geoip.dat", "/tmp/geoip.dat"))
 							if luci.sys.call('sha256sum -c /tmp/geoip.dat.sha256sum > /dev/null 2>&1') == 0 then
 								log("geoip 版本一致，无需更新。")
 								return 1
@@ -237,7 +253,7 @@ local function fetch_geoip()
 							if v2.name and v2.name == "geoip.dat" then
 								sret = curl(v2.browser_download_url, "/tmp/geoip.dat")
 								if luci.sys.call('sha256sum -c /tmp/geoip.dat.sha256sum > /dev/null 2>&1') == 0 then
-									luci.sys.call(string.format("mkdir -p %s && cp -f %s %s", xray_asset_location, "/tmp/geoip.dat", xray_asset_location .. "geoip.dat"))
+									luci.sys.call(string.format("mkdir -p %s && cp -f %s %s", v2ray_asset_location, "/tmp/geoip.dat", v2ray_asset_location .. "geoip.dat"))
 									reboot = 1
 									log("geoip 更新成功。")
 									return 1
@@ -277,8 +293,8 @@ local function fetch_geosite()
 						f:write(content:gsub("geosite.dat", "/tmp/geosite.dat"), "")
 						f:close()
 
-						if nixio.fs.access(xray_asset_location .. "geosite.dat") then
-							luci.sys.call(string.format("cp -f %s %s", xray_asset_location .. "geosite.dat", "/tmp/geosite.dat"))
+						if nixio.fs.access(v2ray_asset_location .. "geosite.dat") then
+							luci.sys.call(string.format("cp -f %s %s", v2ray_asset_location .. "geosite.dat", "/tmp/geosite.dat"))
 							if luci.sys.call('sha256sum -c /tmp/geosite.dat.sha256sum > /dev/null 2>&1') == 0 then
 								log("geosite 版本一致，无需更新。")
 								return 1
@@ -288,7 +304,7 @@ local function fetch_geosite()
 							if v2.name and v2.name == "geosite.dat" then
 								sret = curl(v2.browser_download_url, "/tmp/geosite.dat")
 								if luci.sys.call('sha256sum -c /tmp/geosite.dat.sha256sum > /dev/null 2>&1') == 0 then
-									luci.sys.call(string.format("mkdir -p %s && cp -f %s %s", xray_asset_location, "/tmp/geosite.dat", xray_asset_location .. "geosite.dat"))
+									luci.sys.call(string.format("mkdir -p %s && cp -f %s %s", v2ray_asset_location, "/tmp/geosite.dat", v2ray_asset_location .. "geosite.dat"))
 									reboot = 1
 									log("geosite 更新成功。")
 									return 1
@@ -343,81 +359,35 @@ end
 
 log("开始更新规则...")
 if tonumber(gfwlist_update) == 1 then
-	log("gfwlist 开始更新...")
-	local old_md5 = luci.sys.exec("echo -n $(md5sum " .. rule_path .. "/gfwlist | awk '{print $1}')")
-	local status = fetch_gfwlist()
-	if status == 200 then
-		local new_md5 = luci.sys.exec("echo -n $([ -f '/tmp/gfwlist_tmp' ] && md5sum /tmp/gfwlist_tmp | awk '{print $1}')")
-		if old_md5 ~= new_md5 then
-			luci.sys.exec("mv -f /tmp/gfwlist_tmp " .. rule_path .. "/gfwlist")
-			reboot = 1
-			log("gfwlist 更新成功...")
-		else
-			log("gfwlist 版本一致，无需更新。")
-		end
-	else
-		log("gfwlist 文件下载失败！")
-	end
-
-	os.remove("/tmp/gfwlist_tmp")
+	xpcall(fetch_gfwlist,function(e)
+		log(e)
+		log(debug.traceback())
+		log('更新gfwlist发生错误...')
+	end)
 end
 
 if tonumber(chnroute_update) == 1 then
-	log("chnroute 开始更新...")
-	local old_md5 = luci.sys.exec("echo -n $(md5sum " .. rule_path .. "/chnroute | awk '{print $1}')")
-	local status = fetch_chnroute()
-	if status == 200 then
-		local new_md5 = luci.sys.exec("echo -n $([ -f '/tmp/chnroute_tmp' ] && md5sum /tmp/chnroute_tmp | awk '{print $1}')")
-		if old_md5 ~= new_md5 then
-			luci.sys.exec("mv -f /tmp/chnroute_tmp " .. rule_path .. "/chnroute")
-			reboot = 1
-			log("chnroute 更新成功...")
-		else
-			log("chnroute 版本一致，无需更新。")
-		end
-	else
-		log("chnroute 文件下载失败！")
-	end
-	os.remove("/tmp/chnroute_tmp")
+	xpcall(fetch_chnroute,function(e)
+		log(e)
+		log(debug.traceback())
+		log('更新chnroute发生错误...')
+	end)
 end
 
 if tonumber(chnroute6_update) == 1 then
-	log("chnroute6 开始更新...")
-	local old_md5 = luci.sys.exec("echo -n $(md5sum " .. rule_path .. "/chnroute6 | awk '{print $1}')")
-	local status = fetch_chnroute6()
-	if status == 200 then
-		local new_md5 = luci.sys.exec("echo -n $([ -f '/tmp/chnroute6_tmp' ] && md5sum /tmp/chnroute6_tmp | awk '{print $1}')")
-		if old_md5 ~= new_md5 then
-			luci.sys.exec("mv -f /tmp/chnroute6_tmp " .. rule_path .. "/chnroute6")
-			reboot = 1
-			log("chnroute6 更新成功...")
-		else
-			log("chnroute6 版本一致，无需更新。")
-		end
-	else
-		log("chnroute6 文件下载失败！")
-	end
-	os.remove("/tmp/chnroute6_tmp")
+	xpcall(fetch_chnroute6,function(e)
+		log(e)
+		log(debug.traceback())
+		log('更新chnroute6发生错误...')
+	end)
 end
 
 if tonumber(chnlist_update) == 1 then
-	log("chnlist 开始更新...")
-	local old_md5 = luci.sys.exec("echo -n $(md5sum " .. rule_path .. "/chnlist | awk '{print $1}')")
-	local status = fetch_chnlist()
-	if status == 200 then
-		local new_md5 = luci.sys.exec("echo -n $([ -f '/tmp/chnlist_tmp' ] && md5sum /tmp/chnlist_tmp | awk '{print $1}')")
-		if old_md5 ~= new_md5 then
-			luci.sys.exec("mv -f /tmp/chnlist_tmp " .. rule_path .. "/chnlist")
-			reboot = 1
-			log("chnlist 更新成功...")
-		else
-			log("chnlist 版本一致，无需更新。")
-		end
-	else
-		log("chnlist 文件下载失败！")
-	end
-
-	os.remove("/tmp/chnlist_tmp")
+	xpcall(fetch_chnlist,function(e)
+		log(e)
+		log(debug.traceback())
+		log('更新chnlist发生错误...')
+	end)
 end
 
 if tonumber(geoip_update) == 1 then

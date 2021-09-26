@@ -1,4 +1,4 @@
-module("luci.model.cbi.passwall.api.gen_xray", package.seeall)
+module("luci.model.cbi.passwall.api.gen_v2ray", package.seeall)
 local api = require "luci.model.cbi.passwall.api.api"
 
 local var = api.get_args(arg)
@@ -15,17 +15,19 @@ local local_http_username = var["-local_http_username"]
 local local_http_password = var["-local_http_password"]
 local dns_listen_port = var["-dns_listen_port"]
 local dns_server = var["-dns_server"]
+local dns_tcp_server = var["-dns_tcp_server"]
+local dns_cache = var["-dns_cache"]
 local doh_url = var["-doh_url"]
 local doh_host = var["-doh_host"]
-local doh_socks_address = var["-doh_socks_address"]
-local doh_socks_port = var["-doh_socks_port"]
+local dns_socks_address = var["-dns_socks_address"]
+local dns_socks_port = var["-dns_socks_port"]
 local loglevel = var["-loglevel"] or "warning"
 local network = proto
 local new_port
 
-local ucursor = require"luci.model.uci".cursor()
-local sys = require "luci.sys"
-local json = require "luci.jsonc"
+local uci = api.uci
+local sys = api.sys
+local jsonc = api.jsonc
 local appname = api.appname
 local dns = nil
 local inbounds = {}
@@ -49,7 +51,7 @@ function gen_outbound(node, tag, is_proxy, proxy_tag)
             tag = node_id
         end
 
-        if node.type == "Xray" or node.type == "V2ray" then
+        if node.type == "V2ray" or node.type == "Xray" then
             is_proxy = nil
             if proxy_tag then
                 node.proxySettings = {
@@ -59,7 +61,7 @@ function gen_outbound(node, tag, is_proxy, proxy_tag)
             end
         end
 
-        if node.type ~= "Xray" and node.type ~= "V2ray" then
+        if node.type ~= "V2ray" and node.type ~= "Xray" then
             if node.type == "Socks" then
                 node.protocol = "socks"
                 node.transport = "tcp"
@@ -88,7 +90,7 @@ function gen_outbound(node, tag, is_proxy, proxy_tag)
         else
             if node.tls and node.tls == "1" then
                 node.stream_security = "tls"
-                if node.xtls and node.xtls == "1" then
+                if node.type == "Xray" and node.xtls and node.xtls == "1" then
                     node.stream_security = "xtls"
                 end
             end
@@ -119,7 +121,7 @@ function gen_outbound(node, tag, is_proxy, proxy_tag)
                 } or nil,
                 tcpSettings = (node.transport == "tcp" and node.protocol ~= "socks") and {
                     header = {
-                        type = node.tcp_guise,
+                        type = node.tcp_guise or "none",
                         request = (node.tcp_guise == "http") and {
                             path = node.tcp_guise_http_path or {"/"},
                             headers = {
@@ -155,7 +157,8 @@ function gen_outbound(node, tag, is_proxy, proxy_tag)
                     header = {type = node.quic_guise}
                 } or nil,
                 grpcSettings = (node.transport == "grpc") and {
-                    serviceName = node.grpc_serviceName
+                    serviceName = node.grpc_serviceName,
+                    multiMode = (node.grpc_mode == "multi") and true or false
                 } or nil
             } or nil,
             settings = {
@@ -189,7 +192,7 @@ function gen_outbound(node, tag, is_proxy, proxy_tag)
             }
         }
         local alpn = {}
-        if node.alpn then
+        if node.alpn and node.alpn ~= "default" then
             string.gsub(node.alpn, '[^' .. "," .. ']+', function(w)
                 table.insert(alpn, w)
             end)
@@ -207,13 +210,14 @@ function gen_outbound(node, tag, is_proxy, proxy_tag)
 end
 
 if node_section then
-    local node = ucursor:get_all(appname, node_section)
+    local node = uci:get_all(appname, node_section)
     if local_socks_port then
         local inbound = {
             listen = local_socks_address,
             port = tonumber(local_socks_port),
             protocol = "socks",
-            settings = {auth = "noauth", udp = true}
+            settings = {auth = "noauth", udp = true},
+            sniffing = {enabled = true, destOverride = {"http", "tls"}}
         }
         if local_socks_username and local_socks_password and local_socks_username ~= "" and local_socks_password ~= "" then
             inbound.settings.auth = "password"
@@ -254,7 +258,7 @@ if node_section then
         })
     end
 
-    local up_trust_doh = ucursor:get(appname, "@global[0]", "up_trust_doh")
+    local up_trust_doh = uci:get(appname, "@global[0]", "up_trust_doh")
     if up_trust_doh then
         local t = {}
         string.gsub(up_trust_doh, '[^' .. "," .. ']+', function (w)
@@ -280,19 +284,19 @@ if node_section then
         elseif default_node_id == "_blackhole" then
             default_outboundTag = "blackhole"
         else
-            local default_node = ucursor:get_all(appname, default_node_id)
+            local default_node = uci:get_all(appname, default_node_id)
             local main_node_id = node.main_node or "nil"
             local is_proxy = "0"
             local proxy_tag
             if main_node_id ~= "nil" then
-                local main_node = ucursor:get_all(appname, main_node_id)
+                local main_node = uci:get_all(appname, main_node_id)
                 if main_node and api.is_normal_node(main_node) and main_node_id ~= default_node_id then
                     local main_node_outbound = gen_outbound(main_node, "main")
                     if main_node_outbound then
                         table.insert(outbounds, main_node_outbound)
                         is_proxy = "1"
                         proxy_tag = "main"
-                        if default_node.type ~= "Xray" and default_node.type ~= "V2ray" then
+                        if default_node.type ~= "V2ray" and default_node.type ~= "Xray" then
                             proxy_tag = nil
                             new_port = get_new_port()
                             table.insert(inbounds, {
@@ -325,7 +329,7 @@ if node_section then
             end
         end
 
-        ucursor:foreach(appname, "shunt_rules", function(e)
+        uci:foreach(appname, "shunt_rules", function(e)
             local name = e[".name"]
             local _node_id = node[name] or "nil"
             local is_proxy = node[name .. "_proxy"] or "0"
@@ -338,7 +342,7 @@ if node_section then
                 outboundTag = "default"
             else
                 if _node_id ~= "nil" then
-                    local _node = ucursor:get_all(appname, _node_id)
+                    local _node = uci:get_all(appname, _node_id)
                     if _node and api.is_normal_node(_node) then
                         local has_outbound
                         for index, value in ipairs(outbounds) do
@@ -352,7 +356,7 @@ if node_section then
                             table.insert(outbounds, has_outbound)
                             outboundTag = name
                         else
-                            if _node.type ~= "Xray" and _node.type ~= "V2ray" then
+                            if _node.type ~= "V2ray" and _node.type ~= "Xray" then
                                 if is_proxy == "1" then
                                     new_port = get_new_port()
                                     table.insert(inbounds, {
@@ -438,6 +442,7 @@ if node_section then
 
         routing = {
             domainStrategy = node.domainStrategy or "AsIs",
+            domainMatcher = "hybrid",
             rules = rules
         }
     elseif node.protocol == "_balancing" then
@@ -445,12 +450,13 @@ if node_section then
             local nodes = node.balancing_node
             local length = #nodes
             for i = 1, length do
-                local node = ucursor:get_all(appname, nodes[i])
+                local node = uci:get_all(appname, nodes[i])
                 local outbound = gen_outbound(node)
                 if outbound then table.insert(outbounds, outbound) end
             end
             routing = {
                 domainStrategy = node.domainStrategy or "AsIs",
+                domainMatcher = "hybrid",
                 balancers = {{tag = "balancer", selector = nodes}},
                 rules = {
                     {type = "field", network = "tcp,udp", balancerTag = "balancer"}
@@ -460,6 +466,11 @@ if node_section then
     else
         local outbound = gen_outbound(node)
         if outbound then table.insert(outbounds, outbound) end
+        routing = {
+            domainStrategy = "AsIs",
+            domainMatcher = "hybrid",
+            rules = {}
+        }
     end
 end
 
@@ -468,6 +479,7 @@ if dns_server then
 
     dns = {
         tag = "dns-in1",
+        disableCache = (dns_cache and dns_cache == "0") and true or false,
         servers = {
             dns_server
         }
@@ -478,6 +490,12 @@ if dns_server then
         }
         dns.servers = {
             doh_url
+        }
+    end
+
+    if dns_tcp_server then
+        dns.servers = {
+            dns_tcp_server
         }
     end
 
@@ -504,7 +522,7 @@ if dns_server then
     })
 
     local outboundTag = "direct"
-    if doh_socks_address and doh_socks_port then
+    if dns_socks_address and dns_socks_port then
         table.insert(outbounds, 1, {
             tag = "out",
             protocol = "socks",
@@ -515,8 +533,8 @@ if dns_server then
             settings = {
                 servers = {
                     {
-                        address = doh_socks_address,
-                        port = tonumber(doh_socks_port)
+                        address = dns_socks_address,
+                        port = tonumber(dns_socks_port)
                     }
                 }
             }
@@ -559,7 +577,7 @@ if inbounds or outbounds then
         tag = "dns-out"
     })
 
-    local xray = {
+    local config = {
         log = {
             -- error = string.format("/var/etc/%s/%s.log", appname, node[".name"]),
             loglevel = loglevel
@@ -593,5 +611,5 @@ if inbounds or outbounds then
         }
         ]]--
     }
-    print(json.stringify(xray, 1))
+    print(jsonc.stringify(config, 1))
 end
