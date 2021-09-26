@@ -1,7 +1,4 @@
-from    https://github.com/sirpdboy/sirpdboy-package
-
 # luci-app-adguardhome
-
 复杂的AdGuardHome的openwrt的luci界面
 
  - 可以管理网页端口
